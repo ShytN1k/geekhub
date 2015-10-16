@@ -6,6 +6,8 @@ require_once 'vendor/autoload.php';
 
 use Pimple\Container;
 use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
+use Monolog\Handler\FirePHPHandler;
 use GuzzleHttp\Client;
 use GuzzleHttp\MessageFormatter;
 use GuzzleHttp\HandlerStack;
@@ -13,15 +15,27 @@ use GuzzleHttp\Middleware;
 
 $container = new Container();
 
-$container['logger'] = function($c) {
-    return new Logger('client');
+$container['logger'] = function ($c) {
+    $log = new Logger('client');
+    $log->pushHandler($c['stream']);
+    $log->pushHandler($c['firephp']);
+
+    return $log;
 };
 
-$container['formatter'] = function($c) {
+$container['formatter'] = function ($c) {
     return new MessageFormatter('{req_body} - {res_body}');
 };
 
-$container['stack'] = function($c) {
+$container['stream'] = function ($c) {
+    return new StreamHandler(__DIR__.'/logger.log', Logger::DEBUG);
+};
+
+$container['firephp'] = function ($c) {
+    return new FirePHPHandler();
+};
+
+$container['stack'] = function ($c) {
     $stack = HandlerStack::create();
     $stack->push(
         Middleware::log(
@@ -29,18 +43,27 @@ $container['stack'] = function($c) {
             $c['formatter']
         )
     );
+
     return $stack;
 };
 
-$container['client'] = function($c) {
+$container['client'] = function ($c) {
     return new Client(
         [
             'base_uri' => 'http://youtube.com/',
-            'handler' => $c['stack']
+            'handler' => $c['stack'],
         ]
     );
 };
 
-$client = $container['client'];
+$clients = array(1, $container['client'], 'Hello!');
+$log = $container['logger'];
 
-echo $client->request('GET', 'watch', ['query' => 'v=CSvFpBOe8eY'])->getBody();
+foreach ($clients as $client) {
+    if ($client instanceof Client) {
+        echo $client->request('GET', 'watch', ['query' => 'v=CSvFpBOe8eY'])->getBody();
+        $log->addInfo('Client is reached');
+    } else {
+        $log->addInfo('Not a client');
+    }
+}
