@@ -15,26 +15,27 @@ use GuzzleHttp\Middleware;
 
 $container = new Container();
 
-$container['logger'] = function($c) {
+$container['logger'] = function ($c) {
     $log = new Logger('client');
     $log->pushHandler($c['stream']);
     $log->pushHandler($c['firephp']);
+
     return $log;
 };
 
-$container['formatter'] = function($c) {
+$container['formatter'] = function ($c) {
     return new MessageFormatter('{req_body} - {res_body}');
 };
 
-$container['stream'] = function($c) {
-    return new StreamHandler(__DIR__. '/logger.log', Logger::DEBUG);
+$container['stream'] = function ($c) {
+    return new StreamHandler(__DIR__.'/logger.log', Logger::DEBUG);
 };
 
-$container['firephp'] = function($c) {
+$container['firephp'] = function ($c) {
     return new FirePHPHandler();
 };
 
-$container['stack'] = function($c) {
+$container['stack'] = function ($c) {
     $stack = HandlerStack::create();
     $stack->push(
         Middleware::log(
@@ -42,20 +43,27 @@ $container['stack'] = function($c) {
             $c['formatter']
         )
     );
+
     return $stack;
 };
 
-$container['client'] = function($c) {
+$container['client'] = function ($c) {
     return new Client(
         [
             'base_uri' => 'http://youtube.com/',
-            'handler' => $c['stack']
+            'handler' => $c['stack'],
         ]
     );
 };
 
-$client = $container['client'];
-
-echo $client->request('GET', 'watch', ['query' => 'v=CSvFpBOe8eY'])->getBody();
+$clients = array(1, $container['client'], 'Hello!');
 $log = $container['logger'];
-$log->addInfo('Logger is working!');
+
+foreach ($clients as $client) {
+    if ($client instanceof Client) {
+        echo $client->request('GET', 'watch', ['query' => 'v=CSvFpBOe8eY'])->getBody();
+        $log->addInfo('Client is reached');
+    } else {
+        $log->addInfo('Not a client');
+    }
+}
